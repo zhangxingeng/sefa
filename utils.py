@@ -6,6 +6,9 @@ import subprocess
 import cv2
 import numpy as np
 
+import dnnlib
+import legacy
+
 import torch
 
 from models import MODEL_ZOO
@@ -50,6 +53,16 @@ def postprocess(images, min_val=-1.0, max_val=1.0):
     return images
 
 
+def  get_layers(layer_idx, num_layers):
+    if layer_idx == 'all':
+        layers = list(range(num_layers))
+    else:
+        layers = parse_indices(layer_idx,
+                               min_val=0,
+                               max_val=num_layers - 1)
+    print("LAYERS:",layers)
+    return layers
+
 def load_generator(model_name):
     """Loads pre-trained generator.
 
@@ -68,6 +81,19 @@ def load_generator(model_name):
 
     model_config = MODEL_ZOO[model_name].copy()
     url = model_config.pop('url')  # URL to download model if needed.
+    gan_type = model_config.get('gan_type') 
+    print("URL:",url)
+    if gan_type == 'stylegan2_ada':
+        custom = False
+        G_kwargs = dnnlib.EasyDict()
+        G_kwargs.size = None
+        G_kwargs.scale_type = 'symm'
+
+        device = torch.device('cuda')
+        with dnnlib.util.open_url(url) as f:
+            generator  = legacy.load_network_pkl(f, custom=custom, **G_kwargs)['G_ema'].to(device) # type: ignore
+            #print("generator=",generator)
+            return generator
 
     # Build generator.
     print(f'Building generator for model `{model_name}` ...')
